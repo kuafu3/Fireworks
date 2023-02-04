@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+	<title>Fireworks</title>
+</head>
+<body>
+<div id="div_fw" style="height:device-height;width: device-width; background-color:#000000">
+    <canvas id="canvas_fw" width="400" height="700">您的浏览器不支持canvas</canvas>
+</div>
+<script type="text/javascript">
+/*点击id-时间结构体*/
+// class TouchTime{
+// 	constructor(id,time){
+// 		this.id=id;
+// 		this.time=time;
+// 	}
+// }
+/*烟花类*/
+class Firework{
+    constructor(x,y,speedX,speedY,acc,color) { //若需要旋转绘制爆炸效果，加起始坐标，(-x,-y)表示不旋转
+        this.x=x;//当前坐标
+        this.y=y;
+        this.speedX=speedX;//x方向速度px/s
+        this.speedY=speedY;//y方向速度
+        this.size = Math.sqrt(speedX*speedX+speedY*speedY);//初速度决定大小。size>某数，可以产生小烟花
+        this.countdown = this.size/acc;//爆炸倒计时（速度判断不方便）
+		this.color=ctx.createRadialGradient(0,0,0,0,0,this.size/200);//白色填充（模拟引信火光)
+		this.color.addColorStop(0,"white");//渐变填充色
+		this.color.addColorStop(1,color);//背景填充色
+		// this.color=color;
+        if (speedX==0) {//发射方向，画菱形用
+        	if (speedY>0) {this.angle=Math.PI/2;}
+        	else{this.angle=3*Math.PI/2;}
+        }
+        else{
+        	this.angle=Math.atan(speedY/speedX);
+        	if (speedY<0) {this.angle+=Math.PI;}
+        	if (speedX*speedY<0) {this.angle+=Math.PI;}
+        }
+        this.accX=-acc*Math.cos(this.angle);//运动方向加速度px/s^2
+        this.accY=-acc*Math.sin(this.angle);
+    }
+}
+
+/*全局变量*/
+const cfwnum=80;//子烟花数
+const deltadu=360/cfwnum;
+const deltaangle=2*Math.PI / cfwnum;
+const fwacc=500;//烟花加速度
+let fwc=["rgb(135,206,255)","rgb(0,255,0)","rgb(0,255,255)","rgb(255,0,0)","rgb(255,215,0)","rgb(255,255,0)","rgb(255,255,255)"];//预定颜色
+let devWidth=document.body.clientWidth;//设备尺寸
+let devHeight=document.body.clientHeight;
+let ctx;//画布上下文
+let lastFrameDate=new Date();//上一帧时间
+// let touchTimes=[];//点击时间
+let fireworks=[];//烟花数组
+
+/*函数声明*/
+function init() {//初始化
+	let canvas = document.getElementById("canvas_fw");
+	canvas.width = devWidth;
+	canvas.height = devHeight;
+	if (!(canvas.getContext && window.addEventListener)) {return;}
+    ctx = canvas.getContext("2d");
+}
+function draw() {//绘图
+	ctx.clearRect(0, 0, devWidth, devHeight); //清空所有的内容
+	let date=new Date();
+	let deltatime=(date.getTime()-lastFrameDate.getTime())/1000;//两帧时差(s)
+	lastFrameDate=date;
+	for (let i = fireworks.length - 1; i >= 0; i--) {
+    	ctx.save();
+		//更新
+		fireworks[i].y+=fireworks[i].speedY*deltatime;//更新位置
+		fireworks[i].x+=fireworks[i].speedX*deltatime;//更新位置
+		if (fireworks[i].y<0||fireworks[i].x<0||fireworks[i].y>devHeight||fireworks[i].x>devWidth) {
+			fireworks.splice(i,1);
+			ctx.restore();continue;//飞出屏幕
+		}
+		fireworks[i].speedY+=fireworks[i].accY*deltatime;//更新速度
+		fireworks[i].speedX+=fireworks[i].accX*deltatime;//更新速度
+		fireworks[i].countdown-=deltatime;//更新爆炸倒计时
+		if (fireworks[i].countdown<=0) {//爆炸
+			if (fireworks[i].size>200) {
+				if (fireworks[i].size>400) {
+	 				fireworks[i].size-=400;
+				}
+				else{
+					fireworks[i].size-=100;
+				}
+				let cfwangle=-deltaangle;
+ 				let cfwc=fwc[(Math.random()*7)|0];
+ 				for (let j = 0; j < 360; j+=deltadu) {
+ 					cfwangle+=deltaangle;
+ 					let cfws=Math.random();//子烟花速度（线性分布）
+ 					cfws=1-(cfws-1)*(cfws-1);//二次函数映射（以r^2线性分布）
+ 					cfws*=(fireworks[i].size);//放大
+ 					fireworks.push(new Firework(fireworks[i].x, fireworks[i].y,cfws*Math.cos(cfwangle),cfws*Math.sin(cfwangle),200,cfwc));
+ 				}
+			}
+			fireworks.splice(i,1);
+			ctx.restore();continue;
+		}
+		//画图
+		ctx.beginPath();  
+		ctx.translate(fireworks[i].x, fireworks[i].y);//坐标轴平移
+		ctx.rotate(Math.PI*3/2+fireworks[i].angle);//坐标轴顺时针旋转
+		let diamond_x=fireworks[i].size/210;
+		let diamond_y=fireworks[i].size/108;
+		ctx.moveTo(0,diamond_y);ctx.lineTo(-diamond_x,0);ctx.lineTo(0,-diamond_y);ctx.lineTo(diamond_x,0);ctx.closePath();//菱形烟花
+		ctx.fillStyle=fireworks[i].color;
+	    ctx.fill();
+
+	    ctx.restore();
+	}
+	
+	requestAnimationFrame(draw);
+}
+
+/*函数执行*/
+init();
+draw();
+/*触发事件*/
+if ((navigator.userAgent.match(/(phone|pad|pod|iPhone|iPod|ios|iPad|Android|Mobile|BlackBerry|IEMobile|MQQBrowser|JUC|Fennec|wOSBrowser|BrowserNG|WebOS|Symbian|Windows Phone)/i))) {
+	//移动端
+// window.addEventListener("touchstart",function(e){
+//     let d=new Date();
+//     touchTimes.push(new TouchTime(e.changedTouches[0].identifier, d.getTime()));
+// });
+window.addEventListener("touchend",function(e){
+	// let d=new Date();
+ //    let touchTimeIndex=touchTimes.findIndex(function(t){return t.id==e.changedTouches[0].identifier;});
+ //    let touchContinue = d.getTime() - touchTimes[touchTimeIndex].time;
+ //    touchTimes.splice(touchTimeIndex,1);
+ //    if(touchContinue>1000)
+ //        touchContinue=1000;//最大初速度
+ 	let t=Math.random();
+ 	let touchContinue=t*t*200+500;
+    fireworks.push(new Firework(e.changedTouches[0].clientX,e.changedTouches[0].clientY,0,-touchContinue,fwacc,fwc[(Math.random()*7)|0]));
+});
+document.body.addEventListener('touchmove', function(e){//禁止滑动
+    e.preventDefault();
+}, { passive: false });  //passive 参数不能省略，用来兼容ios和android
+}
+else{
+	//PC端
+// window.addEventListener("mousedown",function(e){
+//     let d=new Date();
+//     touchTimes.push(new TouchTime(1, d.getTime()));
+// });
+window.addEventListener("mouseup",function(e){
+    // let d=new Date();
+    // let touchTimeIndex=touchTimes.findIndex(function(t){return t.id==1;});
+    // let touchContinue = d.getTime() - touchTimes[touchTimeIndex].time;
+    // touchTimes.splice(touchTimeIndex,1);
+    // if(touchContinue>1000)
+    //     touchContinue=1000;//最大初速度
+ 	let touchContinue=Math.random()*100+600;//500-700
+    fireworks.push(new Firework(e.clientX,e.clientY,0,-touchContinue,fwacc,fwc[(Math.random()*7)|0]));
+});
+}
+
+</script>
+</body>
+</html>
